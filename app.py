@@ -4,6 +4,10 @@
 import os
 from datetime import date
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import streamlit as st
 from sqlalchemy import select
 
@@ -11,7 +15,6 @@ from auth import hash_password, verify_password
 from db import engine, get_db_session
 from models import Base, Document, FamilyMember, User
 from storage import get_storage_adapter
-
 
 Base.metadata.create_all(bind=engine)
 
