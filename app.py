@@ -111,10 +111,24 @@ def add_member_tab():
         dob = st.date_input("Date of birth", value=None)
         submitted = st.form_submit_button("Add member")
         if submitted:
+            name = name.strip()
             if not name:
                 st.error("Full name is required")
             else:
                 with get_db_session() as db:
+                    existing = (
+                        db.execute(
+                            select(FamilyMember).where(
+                                FamilyMember.full_name == name,
+                                FamilyMember.dob == dob,
+                            )
+                        )
+                        .scalars()
+                        .first()
+                    )
+                    if existing:
+                        st.error("A family member with the same name and date of birth already exists.")
+                        return
                     creator = db.execute(select(User).where(User.email == get_current_user()["email"]))
                     creator_user = creator.scalar_one()
                     member = FamilyMember(full_name=name, dob=dob, created_by=creator_user.id)
@@ -170,6 +184,31 @@ def member_detail():
 
     st.subheader(member.full_name)
     st.caption(f"DOB: {member.dob or 'Not provided'}")
+
+    if is_admin():
+        with st.expander("Danger zone", expanded=False):
+            confirm_key = f"confirm_delete_member_{member.id}"
+            st.checkbox("Confirm delete member and all documents", key=confirm_key)
+            if st.button("Delete member", key=f"delete_member_{member.id}"):
+                if not st.session_state.get(confirm_key):
+                    st.warning("Please confirm deletion before proceeding.")
+                else:
+                    adapter = get_storage_adapter()
+                    for document in documents:
+                        try:
+                            adapter.delete(document.storage_key)
+                        except Exception as exc:
+                            st.error(f"Failed to delete file from storage: {exc}")
+                            return
+                    with get_db_session() as db:
+                        record = db.get(FamilyMember, member.id)
+                        if record:
+                            db.delete(record)
+                            db.commit()
+                    st.success("Member deleted")
+                    st.session_state.pop("member_id", None)
+                    st.session_state["page"] = "family_members"
+                    st.rerun()
 
     if is_admin():
         with st.expander("Upload Documents", expanded=True):
