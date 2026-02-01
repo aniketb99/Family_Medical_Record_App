@@ -97,7 +97,7 @@ def family_members_tab():
         card_label = f"{index}. {member.full_name}\n{dob_label}"
         if st.button(card_label, key=f"member_{member.id}", use_container_width=True):
             st.session_state["member_id"] = member.id
-            st.session_state["page"] = "member_documents"
+            st.session_state["navigate_to"] = "member_documents"
             st.rerun()
 
 
@@ -126,20 +126,39 @@ def add_member_tab():
 
 
 def member_detail():
-    member_id = st.session_state.get("member_id")
-    if not member_id:
-        st.info("Select a family member from the dashboard.")
+    with get_db_session() as db:
+        members = db.execute(select(FamilyMember).order_by(FamilyMember.created_at.desc())).scalars().all()
+
+    if not members:
+        st.info("No family members found. Add a member to get started.")
         return
-    if isinstance(member_id, str):
+
+    member_ids = [member.id for member in members]
+    member_labels = {
+        member.id: f"{member.full_name} (DOB: {member.dob or 'Not provided'})"
+        for member in members
+    }
+
+    current_id = st.session_state.get("member_id")
+    if isinstance(current_id, str):
         try:
-            member_id = uuid.UUID(member_id)
+            current_id = uuid.UUID(current_id)
         except ValueError:
-            st.error("Invalid member ID")
-            st.session_state.pop("member_id", None)
-            return
+            current_id = None
+
+    if current_id not in member_ids:
+        current_id = member_ids[0]
+
+    selected_id = st.selectbox(
+        "Select family member",
+        member_ids,
+        index=member_ids.index(current_id),
+        format_func=lambda member_id: member_labels[member_id],
+    )
+    st.session_state["member_id"] = selected_id
 
     with get_db_session() as db:
-        member = db.get(FamilyMember, member_id)
+        member = db.get(FamilyMember, selected_id)
         if not member:
             st.error("Member not found")
             st.session_state.pop("member_id", None)
@@ -221,6 +240,8 @@ def main():
 
     if "page" not in st.session_state:
         st.session_state["page"] = "family_members"
+    if st.session_state.get("navigate_to"):
+        st.session_state["page"] = st.session_state.pop("navigate_to")
 
     pages = ["family_members", "add_member", "member_documents"]
     labels = {
