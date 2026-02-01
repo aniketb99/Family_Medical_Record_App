@@ -262,13 +262,15 @@ def member_detail():
                 adapter = get_storage_adapter()
             signed_url = adapter.get_signed_url(document.storage_key, 3600)
             title = f"{document.doc_date} • {document.condition}"
-            with st.expander(title):
-                st.write(f"**{document.file_name}**")
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                st.write(document.file_name)
                 st.caption(f"Uploaded {document.created_at.date()} • File type {document.mime_type}")
-                if document.description:
-                    st.write(document.description)
-                if signed_url:
-                    st.markdown(f"[Download/View]({signed_url})")
+                if st.checkbox("Show details", key=f"doc_{document.id}_details"):
+                    if document.description:
+                        st.write(document.description)
+                    if signed_url:
+                        st.markdown(f"[Download/View]({signed_url})")
 
 
 def main():
