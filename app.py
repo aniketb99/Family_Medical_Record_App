@@ -216,33 +216,42 @@ def member_detail():
                 doc_date = st.date_input("Document date", value=date.today())
                 condition = st.text_input("Reason for visit / treatment")
                 description = st.text_area("Description (optional)")
-                file = st.file_uploader("Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
+                files = st.file_uploader(
+                    "Upload PDFs or images",
+                    type=["pdf", "png", "jpg", "jpeg"],
+                    accept_multiple_files=True,
+                )
                 submitted = st.form_submit_button("Upload")
 
                 if submitted:
                     if not condition:
                         st.error("Reason for visit / treatment is required")
-                    elif not file:
-                        st.error("Please select a file")
+                    elif not files:
+                        st.error("Please select at least one file")
                     else:
                         adapter = get_storage_adapter()
-                        storage_key = adapter.upload(file.getvalue(), file.name, file.type)
                         with get_db_session() as db:
                             uploader = db.execute(select(User).where(User.email == get_current_user()["email"]))
                             uploader_user = uploader.scalar_one()
-                            document = Document(
-                                member_id=member.id,
-                                uploaded_by=uploader_user.id,
-                                doc_date=doc_date,
-                                condition=condition,
-                                description=description,
-                                storage_key=storage_key,
-                                file_name=file.name,
-                                mime_type=file.type,
-                            )
-                            db.add(document)
+                            for file in files:
+                                storage_key = adapter.upload(
+                                    file.getvalue(),
+                                    file.name,
+                                    file.type or "application/octet-stream",
+                                )
+                                document = Document(
+                                    member_id=member.id,
+                                    uploaded_by=uploader_user.id,
+                                    doc_date=doc_date,
+                                    condition=condition,
+                                    description=description,
+                                    storage_key=storage_key,
+                                    file_name=file.name,
+                                    mime_type=file.type or "application/octet-stream",
+                                )
+                                db.add(document)
                             db.commit()
-                        st.success("Document uploaded")
+                        st.success(f"Uploaded {len(files)} document(s)")
                         st.rerun()
 
     st.divider()
