@@ -207,7 +207,7 @@ def member_detail():
                             db.commit()
                     st.success("Member deleted")
                     st.session_state.pop("member_id", None)
-                    st.session_state["page"] = "family_members"
+                    st.session_state["navigate_to"] = "family_members"
                     st.rerun()
 
     if is_admin():
