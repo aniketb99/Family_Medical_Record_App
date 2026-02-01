@@ -13,6 +13,9 @@ class StorageAdapter(Protocol):
     def get_signed_url(self, storage_key: str, expires_in: int) -> str:
         raise NotImplementedError
 
+    def delete(self, storage_key: str) -> None:
+        raise NotImplementedError
+
 
 @dataclass
 class SupabaseStorageAdapter:
@@ -41,6 +44,10 @@ class SupabaseStorageAdapter:
         result = client.storage.from_(self.bucket).create_signed_url(storage_key, expires_in)
         return result.get("signedURL") or ""
 
+    def delete(self, storage_key: str) -> None:
+        client = self._client()
+        client.storage.from_(self.bucket).remove([storage_key])
+
 
 @dataclass
 class LocalStorageAdapter:
@@ -57,6 +64,11 @@ class LocalStorageAdapter:
     def get_signed_url(self, storage_key: str, expires_in: int) -> str:
         file_path = os.path.join(self.base_path, storage_key)
         return f"file://{os.path.abspath(file_path)}"
+
+    def delete(self, storage_key: str) -> None:
+        file_path = os.path.join(self.base_path, storage_key)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 
 def get_storage_adapter() -> StorageAdapter:

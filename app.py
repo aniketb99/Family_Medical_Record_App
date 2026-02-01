@@ -271,6 +271,25 @@ def member_detail():
                         st.write(document.description)
                     if signed_url:
                         st.markdown(f"[Download/View]({signed_url})")
+                    if is_admin():
+                        confirm_key = f"confirm_delete_{document.id}"
+                        st.checkbox("Confirm delete", key=confirm_key)
+                        if st.button("Delete document", key=f"delete_{document.id}"):
+                            if not st.session_state.get(confirm_key):
+                                st.warning("Please confirm deletion before proceeding.")
+                            else:
+                                try:
+                                    adapter.delete(document.storage_key)
+                                except Exception as exc:
+                                    st.error(f"Failed to delete file from storage: {exc}")
+                                    return
+                                with get_db_session() as db:
+                                    record = db.get(Document, document.id)
+                                    if record:
+                                        db.delete(record)
+                                        db.commit()
+                                st.success("Document deleted")
+                                st.rerun()
 
 
 def main():
