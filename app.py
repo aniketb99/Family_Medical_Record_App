@@ -86,6 +86,56 @@ def app_header():
             set_current_user(None)
             st.rerun()
 
+def apply_styles():
+    st.markdown(
+        """
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Fraunces:wght@600;700&display=swap');
+        :root {
+            --text-primary: #111827;
+            --text-muted: #6b7280;
+            --card-bg: #ffffff;
+            --card-border: #e5e7eb;
+            --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.08);
+            --accent: #0f766e;
+        }
+        html, body, [class*="st-"] {
+            font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+            color: var(--text-primary);
+        }
+        h1, h2, h3, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+            font-family: "Fraunces", "DM Sans", serif;
+            letter-spacing: -0.02em;
+        }
+        .doc-card {
+            border: 1px solid var(--card-border);
+            background: var(--card-bg);
+            border-radius: 14px;
+            padding: 16px 18px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 12px;
+        }
+        .doc-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            margin-bottom: 4px;
+        }
+        .doc-meta {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        .section-label {
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def family_members_tab():
     with get_db_session() as db:
@@ -173,6 +223,7 @@ def member_detail():
     st.caption(f"DOB: {member.dob or 'Not provided'}")
 
     if is_admin():
+        st.markdown('<div class="section-label">Upload</div>', unsafe_allow_html=True)
         st.markdown("### Upload Documents")
         with st.form("upload_document"):
             doc_date = st.date_input("Document date", value=date.today())
@@ -208,29 +259,80 @@ def member_detail():
                     st.rerun()
 
     st.divider()
+    st.markdown('<div class="section-label">Documents</div>', unsafe_allow_html=True)
     st.markdown("### Existing Documents")
     if not documents:
         st.info("No documents uploaded yet.")
         return
 
+    conditions = sorted({doc.condition for doc in documents if doc.condition})
+    mime_types = sorted({doc.mime_type for doc in documents if doc.mime_type})
+    min_date = min(doc.created_at.date() for doc in documents)
+    max_date = max(doc.created_at.date() for doc in documents)
+
+    st.markdown("#### Filters")
+    filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
+    search_text = filter_col1.text_input("Search", placeholder="Condition, filename, description")
+    selected_condition = filter_col2.selectbox("Condition", ["All"] + conditions)
+    selected_type = filter_col3.selectbox("File type", ["All"] + mime_types)
+    date_range = st.date_input("Uploaded between", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+
+    if isinstance(date_range, tuple):
+        start_date, end_date = date_range
+    else:
+        start_date = end_date = date_range
+
+    def matches_filters(doc: Document) -> bool:
+        if selected_condition != "All" and doc.condition != selected_condition:
+            return False
+        if selected_type != "All" and doc.mime_type != selected_type:
+            return False
+        if search_text:
+            haystack = " ".join(
+                [
+                    doc.condition or "",
+                    doc.file_name or "",
+                    doc.description or "",
+                ]
+            ).lower()
+            if search_text.lower() not in haystack:
+                return False
+        uploaded_date = doc.created_at.date()
+        if uploaded_date < start_date or uploaded_date > end_date:
+            return False
+        return True
+
+    filtered_docs = [doc for doc in documents if matches_filters(doc)]
+    if not filtered_docs:
+        st.info("No documents match the selected filters.")
+        return
+
     adapter = None
-    for document in documents:
+    for document in filtered_docs:
         if adapter is None:
             adapter = get_storage_adapter()
         signed_url = adapter.get_signed_url(document.storage_key, 3600)
-        st.write(f"**{document.file_name}**")
-        st.caption(
-            f"{document.doc_date} • {document.condition} • Uploaded {document.created_at.date()}"
+        st.markdown(
+            f"""
+            <div class="doc-card">
+              <div class="doc-title">{document.file_name}</div>
+              <div class="doc-meta">
+                Uploaded {document.created_at.date()} • Document date {document.doc_date} • {document.condition}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        if document.description:
-            st.write(document.description)
-        if signed_url:
-            st.markdown(f"[Download/View]({signed_url})")
-        st.divider()
+        with st.expander("View details"):
+            if document.description:
+                st.write(document.description)
+            if signed_url:
+                st.markdown(f"[Download/View]({signed_url})")
 
 
 def main():
     st.set_page_config(page_title="Family Medical Record App", layout="wide")
+    apply_styles()
 
     if not get_current_user():
         login_form()
