@@ -38,6 +38,8 @@ streamlit run app.py
 
 For local development without Supabase, set `STORAGE_BACKEND=local` and `LOCAL_STORAGE_PATH=./uploads`.
 
+You can also use `./run.sh` to create `.venv`, install dependencies, and start the app.
+
 ## Storage Portability (Supabase → S3/GCS/etc.)
 
 Uploads are stored in object storage, not in the database. The database stores the `storage_key` and metadata only. The app uses a `StorageAdapter` interface so you can switch providers by changing configuration instead of rewriting features.

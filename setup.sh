@@ -22,10 +22,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install required Python packages
-pip install -r requirements.txt
-
-# Install Supabase client
-pip install supabase
+python -m pip install -r requirements.txt
 
 # Run the Streamlit app
 streamlit run app.py --server.address 0.0.0.0 --server.port 8501
