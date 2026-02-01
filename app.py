@@ -2,6 +2,7 @@
 ## 2) `app.py`
 
 import os
+import uuid
 from datetime import date
 
 from dotenv import load_dotenv
@@ -91,7 +92,7 @@ def dashboard():
         st.write(f"**{member.full_name}**")
         st.caption(f"DOB: {member.dob or 'Not provided'}")
         if st.button(f"Open {member.full_name}", key=f"member_{member.id}"):
-            st.session_state["member_id"] = str(member.id)
+            st.session_state["member_id"] = member.id
             st.rerun()
         st.divider()
 
@@ -120,6 +121,13 @@ def member_detail():
     if not member_id:
         st.info("Select a family member from the dashboard.")
         return
+    if isinstance(member_id, str):
+        try:
+            member_id = uuid.UUID(member_id)
+        except ValueError:
+            st.error("Invalid member ID")
+            st.session_state.pop("member_id", None)
+            return
 
     with get_db_session() as db:
         member = db.get(FamilyMember, member_id)
