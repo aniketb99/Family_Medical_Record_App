@@ -75,7 +75,7 @@ def login_form():
                 st.success("Account created. Please sign in.")
 
 
-def dashboard():
+def app_header():
     st.title("Family Medical Record App")
 
     col1, col2 = st.columns([3, 1])
@@ -84,6 +84,8 @@ def dashboard():
             set_current_user(None)
             st.rerun()
 
+
+def family_members_tab():
     with get_db_session() as db:
         members = db.execute(select(FamilyMember).order_by(FamilyMember.created_at.desc())).scalars().all()
 
@@ -96,24 +98,29 @@ def dashboard():
             st.rerun()
         st.divider()
 
-    if is_admin():
-        st.subheader("Add Family Member")
-        with st.form("add_member"):
-            name = st.text_input("Full name")
-            dob = st.date_input("Date of birth", value=None)
-            submitted = st.form_submit_button("Add member")
-            if submitted:
-                if not name:
-                    st.error("Full name is required")
-                else:
-                    with get_db_session() as db:
-                        creator = db.execute(select(User).where(User.email == get_current_user()["email"]))
-                        creator_user = creator.scalar_one()
-                        member = FamilyMember(full_name=name, dob=dob, created_by=creator_user.id)
-                        db.add(member)
-                        db.commit()
-                    st.success("Member added")
-                    st.rerun()
+
+def add_member_tab():
+    if not is_admin():
+        st.info("Only admins can add family members.")
+        return
+
+    st.subheader("Add Family Member")
+    with st.form("add_member"):
+        name = st.text_input("Full name")
+        dob = st.date_input("Date of birth", value=None)
+        submitted = st.form_submit_button("Add member")
+        if submitted:
+            if not name:
+                st.error("Full name is required")
+            else:
+                with get_db_session() as db:
+                    creator = db.execute(select(User).where(User.email == get_current_user()["email"]))
+                    creator_user = creator.scalar_one()
+                    member = FamilyMember(full_name=name, dob=dob, created_by=creator_user.id)
+                    db.add(member)
+                    db.commit()
+                st.success("Member added")
+                st.rerun()
 
 
 def member_detail():
@@ -207,16 +214,21 @@ def main():
         login_form()
         return
 
-    st.sidebar.title("Navigation")
-    if st.sidebar.button("Dashboard"):
-        st.session_state.pop("member_id", None)
-    if st.sidebar.button("Member Details"):
-        pass
+    app_header()
 
-    if st.session_state.get("member_id"):
-        member_detail()
+    st.sidebar.title("Navigation")
+    selection = st.sidebar.radio(
+        "Go to",
+        ("Family Members", "Add Member", "Member Details"),
+        index=0,
+    )
+
+    if selection == "Family Members":
+        family_members_tab()
+    elif selection == "Add Member":
+        add_member_tab()
     else:
-        dashboard()
+        member_detail()
 
 
 if __name__ == "__main__":
