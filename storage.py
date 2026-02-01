@@ -66,8 +66,12 @@ def get_storage_adapter() -> StorageAdapter:
         return LocalStorageAdapter(base_path=base_path)
 
     url = os.getenv("SUPABASE_URL")
+    service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     anon_key = os.getenv("SUPABASE_ANON_KEY")
+    api_key = service_role_key or anon_key
     bucket = os.getenv("SUPABASE_BUCKET")
-    if not url or not anon_key or not bucket:
-        raise ValueError("Supabase storage requires SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_BUCKET")
-    return SupabaseStorageAdapter(url=url, anon_key=anon_key, bucket=bucket)
+    if not url or not api_key or not bucket:
+        raise ValueError(
+            "Supabase storage requires SUPABASE_URL, SUPABASE_BUCKET, and either SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY"
+        )
+    return SupabaseStorageAdapter(url=url, anon_key=api_key, bucket=bucket)
