@@ -52,6 +52,8 @@ def login_form():
                 st.error("Invalid credentials")
                 return
             set_current_user(user)
+            st.session_state["page"] = "family_members"
+            st.session_state.pop("member_id", None)
             st.success("Signed in")
             st.rerun()
 
@@ -90,13 +92,13 @@ def family_members_tab():
         members = db.execute(select(FamilyMember).order_by(FamilyMember.created_at.desc())).scalars().all()
 
     st.subheader("Family Members")
-    for member in members:
-        st.write(f"**{member.full_name}**")
-        st.caption(f"DOB: {member.dob or 'Not provided'}")
-        if st.button(f"Open {member.full_name}", key=f"member_{member.id}"):
+    for index, member in enumerate(members, start=1):
+        dob_label = f"DOB: {member.dob or 'Not provided'}"
+        card_label = f"{index}. {member.full_name}\n{dob_label}"
+        if st.button(card_label, key=f"member_{member.id}", use_container_width=True):
             st.session_state["member_id"] = member.id
+            st.session_state["page"] = "member_documents"
             st.rerun()
-        st.divider()
 
 
 def add_member_tab():
@@ -152,7 +154,7 @@ def member_detail():
     st.caption(f"DOB: {member.dob or 'Not provided'}")
 
     if is_admin():
-        st.markdown("### Upload Document")
+        st.markdown("### Upload Documents")
         with st.form("upload_document"):
             doc_date = st.date_input("Document date", value=date.today())
             condition = st.text_input("Condition (treated for)")
@@ -186,7 +188,8 @@ def member_detail():
                     st.success("Document uploaded")
                     st.rerun()
 
-    st.markdown("### Documents")
+    st.divider()
+    st.markdown("### Existing Documents")
     if not documents:
         st.info("No documents uploaded yet.")
         return
@@ -216,16 +219,27 @@ def main():
 
     app_header()
 
+    if "page" not in st.session_state:
+        st.session_state["page"] = "family_members"
+
+    pages = ["family_members", "add_member", "member_documents"]
+    labels = {
+        "family_members": "Family Members",
+        "add_member": "Add Member",
+        "member_documents": "Member Documents",
+    }
+
     st.sidebar.title("Navigation")
     selection = st.sidebar.radio(
         "Go to",
-        ("Family Members", "Add Member", "Member Details"),
-        index=0,
+        pages,
+        format_func=lambda value: labels[value],
+        key="page",
     )
 
-    if selection == "Family Members":
+    if selection == "family_members":
         family_members_tab()
-    elif selection == "Add Member":
+    elif selection == "add_member":
         add_member_tab()
     else:
         member_detail()
