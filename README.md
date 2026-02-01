@@ -40,6 +40,23 @@ For local development without Supabase, set `STORAGE_BACKEND=local` and `LOCAL_S
 
 You can also use `./run.sh` to create `.venv`, install dependencies, and start the app.
 
+## Docker
+
+### Build and run
+
+```bash
+docker build -t family-medical-records .
+docker run --rm -p 8501:8501 --env-file .env family-medical-records
+```
+
+### Docker Compose
+
+```bash
+docker compose up --build
+```
+
+If you use local storage, the compose file mounts `./uploads` into the container.
+
 ## Storage Portability (Supabase → S3/GCS/etc.)
 
 Uploads are stored in object storage, not in the database. The database stores the `storage_key` and metadata only. The app uses a `StorageAdapter` interface so you can switch providers by changing configuration instead of rewriting features.
