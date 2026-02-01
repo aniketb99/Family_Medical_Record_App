@@ -172,102 +172,103 @@ def member_detail():
     st.caption(f"DOB: {member.dob or 'Not provided'}")
 
     if is_admin():
-        st.markdown("### Upload Documents")
-        with st.form("upload_document"):
-            doc_date = st.date_input("Document date", value=date.today())
-            condition = st.text_input("Condition (treated for)")
-            description = st.text_area("Description (optional)")
-            file = st.file_uploader("Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
-            submitted = st.form_submit_button("Upload")
+        with st.expander("Upload Documents", expanded=True):
+            with st.form("upload_document"):
+                doc_date = st.date_input("Document date", value=date.today())
+                condition = st.text_input("Reason for visit / treatment")
+                description = st.text_area("Description (optional)")
+                file = st.file_uploader("Upload PDF or image", type=["pdf", "png", "jpg", "jpeg"])
+                submitted = st.form_submit_button("Upload")
 
-            if submitted:
-                if not condition:
-                    st.error("Condition is required")
-                elif not file:
-                    st.error("Please select a file")
-                else:
-                    adapter = get_storage_adapter()
-                    storage_key = adapter.upload(file.getvalue(), file.name, file.type)
-                    with get_db_session() as db:
-                        uploader = db.execute(select(User).where(User.email == get_current_user()["email"]))
-                        uploader_user = uploader.scalar_one()
-                        document = Document(
-                            member_id=member.id,
-                            uploaded_by=uploader_user.id,
-                            doc_date=doc_date,
-                            condition=condition,
-                            description=description,
-                            storage_key=storage_key,
-                            file_name=file.name,
-                            mime_type=file.type,
-                        )
-                        db.add(document)
-                        db.commit()
-                    st.success("Document uploaded")
-                    st.rerun()
+                if submitted:
+                    if not condition:
+                        st.error("Reason for visit / treatment is required")
+                    elif not file:
+                        st.error("Please select a file")
+                    else:
+                        adapter = get_storage_adapter()
+                        storage_key = adapter.upload(file.getvalue(), file.name, file.type)
+                        with get_db_session() as db:
+                            uploader = db.execute(select(User).where(User.email == get_current_user()["email"]))
+                            uploader_user = uploader.scalar_one()
+                            document = Document(
+                                member_id=member.id,
+                                uploaded_by=uploader_user.id,
+                                doc_date=doc_date,
+                                condition=condition,
+                                description=description,
+                                storage_key=storage_key,
+                                file_name=file.name,
+                                mime_type=file.type,
+                            )
+                            db.add(document)
+                            db.commit()
+                        st.success("Document uploaded")
+                        st.rerun()
 
     st.divider()
-    st.markdown("### Existing Documents")
-    if not documents:
-        st.info("No documents uploaded yet.")
-        return
+    with st.expander("Existing Documents", expanded=True):
+        if not documents:
+            st.info("No documents uploaded yet.")
+            return
 
-    conditions = sorted({doc.condition for doc in documents if doc.condition})
-    mime_types = sorted({doc.mime_type for doc in documents if doc.mime_type})
-    min_date = min(doc.created_at.date() for doc in documents)
-    max_date = max(doc.created_at.date() for doc in documents)
+        conditions = sorted({doc.condition for doc in documents if doc.condition})
+        mime_types = sorted({doc.mime_type for doc in documents if doc.mime_type})
+        min_date = min(doc.created_at.date() for doc in documents)
+        max_date = max(doc.created_at.date() for doc in documents)
 
-    st.markdown("#### Filters")
-    filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
-    search_text = filter_col1.text_input("Search", placeholder="Condition, filename, description")
-    selected_condition = filter_col2.selectbox("Condition", ["All"] + conditions)
-    selected_type = filter_col3.selectbox("File type", ["All"] + mime_types)
-    date_range = st.date_input("Uploaded between", value=(min_date, max_date), min_value=min_date, max_value=max_date)
-
-    if isinstance(date_range, tuple):
-        start_date, end_date = date_range
-    else:
-        start_date = end_date = date_range
-
-    def matches_filters(doc: Document) -> bool:
-        if selected_condition != "All" and doc.condition != selected_condition:
-            return False
-        if selected_type != "All" and doc.mime_type != selected_type:
-            return False
-        if search_text:
-            haystack = " ".join(
-                [
-                    doc.condition or "",
-                    doc.file_name or "",
-                    doc.description or "",
-                ]
-            ).lower()
-            if search_text.lower() not in haystack:
-                return False
-        uploaded_date = doc.created_at.date()
-        if uploaded_date < start_date or uploaded_date > end_date:
-            return False
-        return True
-
-    filtered_docs = [doc for doc in documents if matches_filters(doc)]
-    if not filtered_docs:
-        st.info("No documents match the selected filters.")
-        return
-
-    adapter = None
-    for document in filtered_docs:
-        if adapter is None:
-            adapter = get_storage_adapter()
-        signed_url = adapter.get_signed_url(document.storage_key, 3600)
-        st.write(f"**{document.file_name}**")
-        st.caption(
-            f"Uploaded {document.created_at.date()} • Document date {document.doc_date} • {document.condition}"
+        st.markdown("#### Filters")
+        filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 2])
+        search_text = filter_col1.text_input("Search", placeholder="Condition, filename, description")
+        selected_condition = filter_col2.selectbox("Condition", ["All"] + conditions)
+        selected_type = filter_col3.selectbox("File type", ["All"] + mime_types)
+        date_range = st.date_input(
+            "Uploaded between", value=(min_date, max_date), min_value=min_date, max_value=max_date
         )
-        with st.expander("View details"):
-            if document.description:
-                st.write(document.description)
-            if signed_url:
-                st.markdown(f"[Download/View]({signed_url})")
+
+        if isinstance(date_range, tuple):
+            start_date, end_date = date_range
+        else:
+            start_date = end_date = date_range
+
+        def matches_filters(doc: Document) -> bool:
+            if selected_condition != "All" and doc.condition != selected_condition:
+                return False
+            if selected_type != "All" and doc.mime_type != selected_type:
+                return False
+            if search_text:
+                haystack = " ".join(
+                    [
+                        doc.condition or "",
+                        doc.file_name or "",
+                        doc.description or "",
+                    ]
+                ).lower()
+                if search_text.lower() not in haystack:
+                    return False
+            uploaded_date = doc.created_at.date()
+            if uploaded_date < start_date or uploaded_date > end_date:
+                return False
+            return True
+
+        filtered_docs = [doc for doc in documents if matches_filters(doc)]
+        if not filtered_docs:
+            st.info("No documents match the selected filters.")
+            return
+
+        adapter = None
+        for document in filtered_docs:
+            if adapter is None:
+                adapter = get_storage_adapter()
+            signed_url = adapter.get_signed_url(document.storage_key, 3600)
+            title = f"{document.doc_date} • {document.condition}"
+            with st.expander(title):
+                st.write(f"**{document.file_name}**")
+                st.caption(f"Uploaded {document.created_at.date()} • File type {document.mime_type}")
+                if document.description:
+                    st.write(document.description)
+                if signed_url:
+                    st.markdown(f"[Download/View]({signed_url})")
 
 
 def main():
